@@ -1,10 +1,11 @@
 import React, {useState} from "react"
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, ToastAndroid } from 'react-native'
 import { isNullOrEmpty } from '../utils/isNullOrEmpty'
 import { theme } from '../utils/theme'
 import { useNavigation } from '@react-navigation/native';
 import { TextInputMask, TextInput, IconButton, HelperText, ActivityIndicator } from 'react-native-paper';
-import { database } from "../config/firebaseconfig"
+import { deleteVehicle, deleteWash, editVehicle, editWash } from "../config/endpoints";
+import { useSelector } from "react-redux";
 
 const TypeItem = ({item, role, userId, type}) => {
 
@@ -12,30 +13,63 @@ const TypeItem = ({item, role, userId, type}) => {
 
     const [editVisible, setEditVisible] = useState(false)
     const [itemValue, setItemValue] = useState(item)
-    const [title, setTitle] = useState({value: item!=null ? item.title : null, error: ""})
-    const [desc, setDesc] = useState({value: item!=null ? item.desc : null, error: ""})
-    const [price, setPrice] = useState({value: item!=null ? item.price : null, error: ""})
+    const [title, setTitle] = useState({value: item!=null ? item.titulo : null, error: ""})
+    const [desc, setDesc] = useState({value: item!=null ? item.descricao : null, error: ""})
+    const [price, setPrice] = useState({value: item!=null ? item.preco : null, error: ""})
     const [loading, setLoading] = useState(false)
+    const [error, setError] = useState("")
+
+    const { user } = useSelector(state => state)
 
     const updateItem = () => {
         setLoading(true)
-
-        database.collection(type=="WASH" ? "washes" : "vehicles").doc(itemValue.id).update({
-            title: title.value,
-            desc: desc.value,
-            price: price.value
-        }).then(() => {
-            setEditVisible(false)
-            setLoading(false)
-        })
+        setError("")
+        if(type=="WASH") {
+            editWash(title.value, price.value, itemValue.id, desc.value, user.user.token).then(() => {
+                setEditVisible(false)
+                setLoading(false)
+            }).catch((error) => {
+                setError(error.message)
+            })
+        } else {
+            editVehicle(title.value, price.value, itemValue.id, user.user.token).then(() => {
+                setEditVisible(false)
+                setLoading(false)
+            }).catch((error) => {
+                ToastAndroid.show(error.message, ToastAndroid.SHORT)
+                setLoading(false)
+            })
+        }
     }
 
     const handleXClick = () => {
+        setError("")
         if (editVisible) {
+            setTitle({value: itemValue.titulo, error: ""})
+            setPrice({value: itemValue.preco, error: ""})
+            if(type=="WASH") {
+                setDesc({value: itemValue.descricao, error: ""})
+            }
             setEditVisible(false)
         } else {
             setLoading(true)
-            database.collection(type == "WASH" ? "washes" : "vehicles").doc(itemValue.id).delete()
+            if(type=="WASH") {
+                deleteWash(itemValue.id, user.user.token).then(() => {
+                    setLoading(false)
+                    setItemValue(null)
+                }).catch((error) => {
+                    setLoading(false)
+                    ToastAndroid.show( "Erro. Tente novamente.", ToastAndroid.SHORT)
+                })
+            } else {
+                deleteVehicle(itemValue.id, user.user.token).then(() => {
+                    setLoading(false)
+                    setItemValue(null)
+                }).catch((error) => {
+                    setLoading(false)
+                    ToastAndroid.show(error.message, ToastAndroid.SHORT)
+                })
+            }
         }
     }
 

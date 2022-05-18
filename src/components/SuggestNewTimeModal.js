@@ -7,13 +7,14 @@ import { ScrollView } from 'react-native-gesture-handler'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { isNullOrEmpty } from '../utils/isNullOrEmpty'
 import { getDate, getTime } from '../utils/getDateTime'
-import { database } from '../config/firebaseconfig'
+import { rescheduleOrder } from '../config/endpoints'
+import { useSelector } from 'react-redux'
 
     const SuggestNewTimeModal = ({item, visible, setVisible, style, confirmChange}) => {
 
     const [code, setCode] = React.useState({value: "", error: ""})
-    const [date, setDate] = React.useState({actualDate: isNullOrEmpty(item.suggestedTime) ? item.originalTime.split("T")[0] : item.suggestedTime.split("T")[0], tempDate: ""})
-    const [time, setTime] = React.useState({actualTime: isNullOrEmpty(item.suggestedTime) ? item.originalTime.split("T")[1] : item.suggestedTime.split("T")[1], tempTime: ""})
+    const [date, setDate] = React.useState({actualDate: isNullOrEmpty(item.suggestedDate) ? item.originalDate.split("T")[0] : item.suggestedDate.split("T")[0], tempDate: ""})
+    const [time, setTime] = React.useState({actualTime: isNullOrEmpty(item.suggestedDate) ? item.originalDate.split("T")[1] : item.suggestedDate.split("T")[1], tempTime: ""})
     
     const [selectedWasher, setSelectedWasher] = React.useState()
     const [datePickerVisible, setDatePickerVisible] = React.useState(false)
@@ -21,6 +22,8 @@ import { database } from '../config/firebaseconfig'
 
     const [loading, setLoading] = React.useState(false)
     const [newTimeError, setNewTimeError] = React.useState("")
+
+    const { user } = useSelector(state => state)
 
     const hideModal = () => setVisible(false);
     const containerStyle = {flex: 1,flexDirection: "column", justifyContent: "center", alignItems: "center", alignContent: "center", backgroundColor: "rgba(0,0,0,0.5)", top: 0, bottom: 0, left: 0, right: 0, padding: 20, width: "100%"};
@@ -55,7 +58,6 @@ import { database } from '../config/firebaseconfig'
                         minimumDate={Date.parse(new Date())}
                         display='default'
                         onChange={date_ => {
-                            alert(JSON.stringify(date_))
                             setDate({actualDate: date.actualDate, tempDate: date_.nativeEvent.timestamp.toISOString().split("T")[0]})
                             setDatePickerVisible(false)
                         }}
@@ -70,7 +72,6 @@ import { database } from '../config/firebaseconfig'
                         minimumDate={Date.parse(new Date())}
                         display='default'
                         onChange={date_ => {
-                            //alert(JSON.stringify(date_))
                             setTime({actualTime: time.actualTime, tempTime: date_.nativeEvent.timestamp.toISOString().split("T")[1]})
                             setTimePickerVisible(false)
                         }}
@@ -83,13 +84,17 @@ import { database } from '../config/firebaseconfig'
                         const time_ = {actualTime: time.tempTime!="" ? time.tempTime : time.actualTime, tempTime: ""}
 
                         const date__ = new Date(date_.actualDate).toISOString().split("T")[0]
-                        const time__ = new Date(time_.actualDate).toISOString().split("T")[1]
+                        const time__ = new Date(date_.actualDate+"T"+time_.actualTime).toISOString().split("T")[1]
 
-                        database.collection("orders").doc(item.id).update({
-                            suggestedTime: date__+"T"+time__
-                        }).then(() => {
-                            setLoading(false)
-                            setVisible(false)
+                        rescheduleOrder(item.id, date__+"T"+time__, user.user.token).then((result) => {
+                            if(result.data.message != undefined) {
+                                setLoading(false)
+                                setNewTimeError("Não foi possível registrar novo horário, tente novamente!")
+                            } else {
+                                confirmChange(result.data.status, result.data.suggestedDate)
+                                setLoading(false)
+                                setVisible(false)
+                            }
                         }).catch(() => {
                             setLoading(false)
                             setNewTimeError("Não foi possível registrar novo horário, tente novamente!")

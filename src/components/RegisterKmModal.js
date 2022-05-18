@@ -3,7 +3,8 @@ import { Portal, Text, Provider, IconButton, TextInput, HelperText, Button, Acti
 import { View, Modal, ScrollView, ToastAndroid } from 'react-native'
 import { theme } from '../utils/theme';
 import { isNullOrEmpty } from '../utils/isNullOrEmpty';
-import { database } from '../config/firebaseconfig';
+import { parkOrder } from '../config/endpoints';
+import { useSelector } from 'react-redux';
 
 const RegisterKmModal = ({visible, setVisible, style, completeAction, role, itemId, managerCode, clientCode}) => {
 
@@ -15,7 +16,9 @@ const RegisterKmModal = ({visible, setVisible, style, completeAction, role, item
   const hideModal = () => setVisible(false);
   const containerStyle = {flexGrow: 1 ,flexDirection: "column", justifyContent: "center", alignItems: "center", alignContent: "center", backgroundColor: "rgba(0,0,0,0.5)", top: 0, bottom: 0, left: 0, right: 0, padding: 20, width: "100%"};
 
-  const assignWasher = () => {
+  const { user } = useSelector(state => state)
+
+  const registerKm = () => {
     setKmError('')
 
     setLoadingConfirm(true)
@@ -32,33 +35,25 @@ const RegisterKmModal = ({visible, setVisible, style, completeAction, role, item
       setCode({value: "", error: "Código não pode ser vazio"})
     }
 
-    if(role=="MANAGER"){
-      if(code.value != clientCode) {
-        oneError = true;
-        setCode({value: "", error: "Esse código não corresponde ao código do cliente"})
-      }
-    } else {
-      if(code.value != managerCode) {
-        oneError = true;
-        setCode({value: "", error: "Esse código não corresponde ao código do gerente"})
-      }
-    }
-
     if (oneError) {
       setLoadingConfirm(false)
       return
     }
 
-
-    database.collection("orders").doc(itemId).update({
-      kilometers: selectedKm.value
-    }).then(() => {
-      setVisible(false)
-      completeAction()
+    parkOrder(role, itemId, selectedKm.value, code.value, user.user.token)
+    .then((result) => {
+      if(result.data.message != undefined) {
+        setKmError(result.data.message)
+        setLoadingConfirm(false)
+      } else {
+        setVisible(false)
+        completeAction(result.data)
+        setLoadingConfirm(false)
+      }
+    })
+    .catch((error) => {
+      setKmError(error.message)
       setLoadingConfirm(false)
-    }).catch((error) => {
-      alert(JSON.stringify(error))
-      setKmError("Não foi possível registrar KM, tente novamente!")
     })
   }
   
@@ -103,7 +98,7 @@ const RegisterKmModal = ({visible, setVisible, style, completeAction, role, item
                 <HelperText type="error" visible={code.error != ""} >
                     {code.error}
                 </HelperText>
-                {!loadingConfirm && <Button theme={theme} style={{marginBottom: 15}} icon="check" mode="contained" onPress={assignWasher}>
+                {!loadingConfirm && <Button theme={theme} style={{marginBottom: 15}} icon="check" mode="contained" onPress={registerKm}>
                     Aprovar
                 </Button>}
                 {kmError!='' && <HelperText type="error">

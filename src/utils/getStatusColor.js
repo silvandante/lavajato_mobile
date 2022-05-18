@@ -2,8 +2,8 @@ import { theme } from "./theme"
 
 export function getStatusColor(status, role) {
     switch(status){
-        case "PENDING_MANAGER":
-            return role=="MANAGER" ? theme.colors.primary : theme.colors.disabled
+        case "PENDING_ADMIN":
+            return role=="ADMIN" ? theme.colors.primary : theme.colors.disabled
         case "PENDING_CLIENT":
             return role=="CLIENT" ? theme.colors.primary : theme.colors.disabled
         case "APPROVED":

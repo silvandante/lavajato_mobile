@@ -8,42 +8,42 @@ import {
     Linking,
     Image
 } from "react-native"
-import { TouchableOpacity } from "react-native-gesture-handler"
 import { Button, IconButton } from "react-native-paper"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { database, storage } from "../../config/firebaseconfig"
+import { useSelector } from "react-redux"
+import { getAddress } from "../../config/endpoints"
 import { theme } from "../../utils/theme"
 
 const Address = () => {
 
     const [loading, setLoading] = useState(true)
-    const [loadingImage, setLoadingImage] = useState(true)
-    const [imageUrl, setImageUrl] = useState("")
     const [address, setAddress] = useState({})
+    const [addressError, setAddressError] = useState("")
+    const { user } = useSelector(state => state)
 
     useEffect(() => {
-        setLoading(true)
-        const unsubscribe = database.collection("address").limit(1).onSnapshot((query) => {
-            const dataAddress = query.docs[0].data()
-            setAddress(dataAddress)
-            setLoading(false)
-        })
-
-        return unsubscribe
+        getAddressData()
     }, [])
 
-    useEffect(() => {
-        setLoadingImage(true)
-        storage.ref("mapa.png")
-            .getDownloadURL()
-            .then((url) => {
-                setImageUrl(url)
-                setLoadingImage(false)
-            }).catch((e) => console.log('Errors while downloading => ', e));
-    }, []);
+    const getAddressData = () => {
+        setAddressError("")
+        setLoading(true)
+        getAddress(user.user.token).then((data) => {
+            if(data.data.message != undefined) {
+                setAddressError(JSON.stringify(error))
+                setLoading(false)
+            } else {
+                setAddress(data.data)
+                setLoading(false)
+            }
+        }).catch((error) => {
+            setAddressError(JSON.stringify(error))
+            setLoading(false)
+        })
+    }
 
     const startNavigation = () => {
-        if(!loading && !loadingImage) {
+        if(!loading) {
             Linking.canOpenURL(address.link).then(supported => {
                 if (supported) {
                     Linking.openURL(address.link);
@@ -56,17 +56,21 @@ const Address = () => {
 
     return(
         <SafeAreaView style={{flex: 1}}>
-                {!loadingImage && !loading &&<View style={{flex: 1, justifyContent: "center"}}>
-                    <Image style={{ height: 300, width: "100%"}} resizeMode={"cover"} source={{uri: imageUrl}} />
-                    <Text style={{ marginTop: 20, fontWeight: "bold", fontSize: 20, marginHorizontal: 15, textAlign: "center"}}>{address.desc}</Text>
+                {!loading &&<View style={{flex: 1, justifyContent: "center"}}>
+                    <Text style={{ marginTop: 20, fontWeight: "bold", fontSize: 20, marginHorizontal: 15, textAlign: "center"}}>{address.descricao}</Text>
                 </View>}
-                {!loadingImage && !loading &&<View style={{flex: 1, justifyContent: "center"}}>
+                {!loading &&<View style={{flex: 1, justifyContent: "center"}}>
                 <Button icon="map" mode="contained" onPress={startNavigation} style={{marginHorizontal: 15}}>
                   Clique para abrir no mapa
                 </Button>
                 </View>}
-                {(loading || loadingImage) && <ActivityIndicator size={"large"} color={theme.colors.primary} style={{alignSelf: "center"}}/>}
-         
+                {(loading) && <ActivityIndicator size={"large"} color={theme.colors.primary} style={{alignSelf: "center"}}/>}
+                {!loading && addressError!="" && <>
+                    <Button theme={theme} style={{ marginBottom: 15, borderWidth: 1, borderColor: theme.colors.primary }} icon="plus" mode="outline" onPress={getAddressData}>
+                        Tentar novamente
+                    </Button>
+                    <Text>{addressError}</Text>
+                </>}
         </SafeAreaView>
     )
 }

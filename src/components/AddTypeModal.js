@@ -3,15 +3,18 @@ import { Portal, Text, Provider, IconButton, TextInput, HelperText, Button, Acti
 import { View, Modal, ScrollView } from 'react-native'
 import { theme } from '../utils/theme';
 import { isNullOrEmpty } from '../utils/isNullOrEmpty';
-import { database } from '../config/firebaseconfig';
+import { addVehicle, addWash } from '../config/endpoints';
+import { useSelector } from 'react-redux';
 
-const AddTypeModal = ({visible, setVisible, labelDescription, labelTitle, labelPrice, completeAction, typeToAdd = ""}) => {
+const AddTypeModal = ({visible, setVisible, labelDescription, labelTitle, labelPrice, confirmAction, typeToAdd = ""}) => {
 
   const [type, setType] = React.useState({value: "", error: ""})
   const [value, setValue] = React.useState({value: "", error: ""})
   const [desc, setDesc] = React.useState({value: "", error: ""})
   const [loadingConfirm, setLoadingConfirm] = React.useState(false)
   const [addTypeError, setAddTypeError] = React.useState("")
+
+  const { user } = useSelector(state => state)
 
   const hideModal = () => setVisible(false);
   const containerStyle = {flexGrow: 1 ,flexDirection: "column", justifyContent: "center", alignItems: "center", alignContent: "center", backgroundColor: "rgba(0,0,0,0.5)", top: 0, bottom: 0, left: 0, right: 0, padding: 20, width: "100%"};
@@ -46,15 +49,25 @@ const AddTypeModal = ({visible, setVisible, labelDescription, labelTitle, labelP
       desc: isNullOrEmpty(desc.value) ? '' : desc.value
     }
 
-    database.collection(typeToAdd == "WASH" ? "washes" : "vehicles").add(item)
-      .then((result) => {
+    if (typeToAdd == "WASH") {
+      addWash(item.title, item.price, item.desc,user.user.token).then((result) => {
         setLoadingConfirm(false)
         setVisible(false)
-      })
-      .catch(() => {
+        confirmAction(result.data)
+      }).catch((error) => {
         setLoadingConfirm(false)
-        setAddTypeError("Não foi possível adicionar novo tipo, tente novamente!")
+        setAddTypeError(error.message)
       })
+    } else {
+      addVehicle(item.title, item.price, user.user.token).then((result) => {
+        setLoadingConfirm(false)
+        setVisible(false)
+        confirmAction(result.data)
+      }).catch((error) => {
+        setLoadingConfirm(false)
+        setAddTypeError(error.message)
+      })
+    }
   }
 
   React.useEffect(() => {

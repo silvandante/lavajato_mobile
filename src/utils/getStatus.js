@@ -1,7 +1,7 @@
 export function getStatus(status, role) {
     switch(status){
-        case "PENDING_MANAGER":
-            return role=="MANAGER" ? "Responder" : "Pendente"
+        case "PENDING_ADMIN":
+            return role=="ADMIN" ? "Responder" : "Pendente"
         case "PENDING_CLIENT":
             return role=="CLIENT" ? "Responder" : "Pendente"
         case "APPROVED":

@@ -13,8 +13,8 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { theme } from "../../utils/theme"
 import { getDate, getTime } from "../../utils/getDateTime"
 import { Picker } from "@react-native-picker/picker"
-import { database } from "../../config/firebaseconfig"
 import { useSelector } from "react-redux"
+import { createOrder, getVehicles, getWashes } from "../../config/endpoints"
 
 
 const AddSchedule = ({route, navigation}) => {
@@ -32,8 +32,11 @@ const AddSchedule = ({route, navigation}) => {
     const [selectedWash, setSelectedWash] = useState("")
     const [selectedVehicle, setSelectedVehicle] = useState("")
 
-    const [datePickerVisible, setDatePickerVisible] = React.useState(false)
-    const [timePickerVisible, setTimePickerVisible] = React.useState(false)
+    const [datePickerVisible, setDatePickerVisible] = useState(false)
+    const [timePickerVisible, setTimePickerVisible] = useState(false)
+
+    const [vehiclesError, setVehiclesError] = React.useState(false)
+    const [washError, setWashError] = React.useState(false)
 
     const [totalPrice, setTotalPrice] = useState("0,00")
 
@@ -43,80 +46,85 @@ const AddSchedule = ({route, navigation}) => {
         setWashsData({loading: true, data: []})
         setVehicleData({loading: true, data: []})
 
-        const unsubscribe1 = database.collection("vehicles").onSnapshot((query) => {
-            const list = []
-            query.forEach((doc) => {
-                list.push({...doc.data(), id: doc.id})
-            })
-            setVehicleData({loading: false, data: list})
-            setSelectedVehicle(list[0])
-            setLoading(false)
-
-        })
-
-        const unsubscribe2 = database.collection("washes").onSnapshot((query) => {
-            const list = []
-            query.forEach((doc) => {
-                list.push({...doc.data(), id: doc.id})
-            })
-            setWashsData({loading: false, data: list})
-            setSelectedWash(list[0])
-            setLoading(false)
-
-        })
+        
+        getVehiclesData()
+        getWashesData()
     
-        return () => {
-            unsubscribe1()
-            unsubscribe2()
-        }
     }, [])
+
+    const getVehiclesData = () => {
+        setVehicleData({loading: true, data: []})
+        setVehiclesError("")
+        getVehicles(user.user.token).then((list) => {
+            if(list.data.message != undefined) {
+                setLoading(false)
+                setVehiclesError(error.message)
+                setVehicleData({loading: false, data: []})
+            } else {
+                setLoading(false)
+                setVehicleData({loading: false, data: list.data})
+                setSelectedVehicle(list.data[0])
+            }
+        }).catch((error) => {
+            setWashsData({loading: false, data: []})
+            setVehiclesError(error.message)
+        })
+    }
+
+    const getWashesData = () => {
+        setWashsData({loading: true, data: []})
+        setWashError("")
+        getWashes(user.user.token).then((list) => {
+            if(list.data.message != undefined) {
+                setLoading(false)
+                setWashsData({loading: false, data: []})
+                setWashError(error.message)
+            } else {
+                setLoading(false)
+                setWashsData({loading: false, data: list.data})
+                setSelectedWash(list.data[0])
+            }
+        }).catch((error) => {
+            setWashsData({loading: false, data: []})
+            setWashError(error.message)
+        })
+    }
 
     const confirmAdd = () => {
         setLoading(true)
         setAddScheduleError('')
 
-        var val1 = Math.floor(1000 + Math.random() * 9000);
-        var val2 = Math.floor(1000 + Math.random() * 9000);
-
         const dateValue = new Date(date).toISOString().split("T")[0]
         const timeValue = new Date(time).toISOString().split("T")[1]
 
         const completeDate = dateValue+"T"+timeValue
-        
-        database.collection("orders").add({
-            acceptedTime: "",
-            currentStatus: "PENDING_MANAGER",
-            idClient: user.user.name,
-            uidClient: user.user.uid,
-            clientPhone: user.user.phone,
-            idVehicleType: selectedVehicle.title,
-            idWashType: selectedWash.title +" ("+ selectedWash.desc+")",
-            idWasher: "",
-            kilometers: "",
-            originalTime: completeDate,
-            suggestedTime: "",
-            totalPrice: totalPrice,
-            managerCode: val1,
-            clientCode: val2,
-            createdAt: new Date().toISOString()
-        }).then(() => {
-            ToastAndroid.show( "Agendamento adicionado com sucesso", ToastAndroid.SHORT);
-            navigation.pop()
+
+        createOrder(selectedVehicle.id, selectedWash.id, completeDate, user.user.token)
+        .then((result) => {
+            if(result.data.message != undefined) {
+                setLoading(false)
+                setAddScheduleError("Não foi possível adicionar esse agendamento, tente novamente!")
+
+            } else {
+                ToastAndroid.show( "Agendamento adicionado com sucesso", ToastAndroid.SHORT);
+                navigation.pop()
+            }
         }).catch((error) => {
+            setLoading(false)
             setAddScheduleError("Não foi possível adicionar esse agendamento, tente novamente!")
         })
     }
 
     useEffect(() => {
-        const selectedVehiclePrice = parseFloat(selectedVehicle.price)
-        const selectedWashPrice = parseFloat(selectedWash.price)
+        const selectedVehiclePrice = parseFloat(selectedVehicle.preco)
+        const selectedWashPrice = parseFloat(selectedWash.preco)
 
         setTotalPrice((selectedVehiclePrice+selectedWashPrice).toFixed(2).toString().replace(".", ","))
     }, [selectedVehicle, selectedWash])
 
     return(
         <SafeAreaView style={{padding: 20, backgroundColor: theme.colors.softDisable, height: "100%", width: "100%", flexDirection: "column"}}>
-            {!loading && <>
+            {(!loading || (!washsData.loading && !vehicleData.loading)) && <>
             <View style={{width: "100%", flexDirection: "row", justifyContent: "flex-end"}}>
                 <IconButton
                     icon="close"
@@ -127,29 +135,26 @@ const AddSchedule = ({route, navigation}) => {
             </View>
             <Title style={{alignSelf: "center", textAlign: "center", marginBottom: 30}}>Agendar</Title>
             <Text style={{color: theme.colors.disabled}}>Escolha o tipo de veículo</Text>
-            {vehicleData.loading && <ActivityIndicator 
-                style={{marginBottom: 30, marginTop: 25}} animating={true} size={"small"} color={theme.colors.primary}/>}
-            {!vehicleData.loading && <Picker
+            
+            <Picker
                 style={{marginBottom: 25}}
                 selectedValue={selectedVehicle.id}
                 onValueChange={(itemValue, itemIndex) => {
                     const value = vehicleData.data.find(item => item['id'] == itemValue)
                     setSelectedVehicle(value)
                 }}>
-                {vehicleData.data.map((value) => <Picker.Item key={value.id} label={value.title} value={value.id}/>)}
-            </Picker>}
+                {vehicleData.data.map((value) => <Picker.Item key={value.id} label={value.titulo} value={value.id}/>)}
+            </Picker>
             <Text style={{color: theme.colors.disabled}}>Escolha o tipo de lavagem</Text>
-            {washsData.loading && <ActivityIndicator 
-                style={{marginBottom: 30, marginTop: 25}} animating={true} size={"small"} color={theme.colors.primary}/>}
-            {!washsData.loading && <Picker
+            <Picker
                 style={{marginBottom: 25}}
                 selectedValue={selectedWash.id}
                 onValueChange={(itemValue, itemIndex) => {
                     const value = washsData.data.find(item => item['id'] == itemValue)
                     setSelectedWash(value)
                 }}>
-                {washsData.data.map((value) => <Picker.Item key={value.id} label={value.title} value={value.id}/>)}
-            </Picker>}
+                {washsData.data.map((value) => <Picker.Item key={value.id} label={value.titulo + "(" + value.descricao+")"} value={value.id}/>)}
+            </Picker>
             <Button theme={theme} icon="calendar" mode="outline" style={{borderWidth: 1, borderColor: theme.colors.primary, marginBottom: 18}} onPress={() => setDatePickerVisible(true)}>
                 Escolher data: {getDate(new Date(date).toISOString())}
             </Button>
@@ -181,7 +186,6 @@ const AddSchedule = ({route, navigation}) => {
                 minimumDate={Date.parse(new Date())}
                 display='default'
                 onChange={(event, date) => {
-                    //alert(JSON.stringify(date_))
                     if (date != null) {
                         setTime(date)
                     }
@@ -202,7 +206,18 @@ const AddSchedule = ({route, navigation}) => {
                 </HelperText>}
             
             </>}
-        {loading && <ActivityIndicator size={"large"} color={theme.colors.primary}/>}
+        {((washsData.loading && vehicleData.loading) || loading) && <ActivityIndicator size={"large"} color={theme.colors.primary}/>}
+        {(washError != "") && <HelperText type="error">
+            {washError}
+        </HelperText>}
+        {(vehiclesError != "") && <HelperText type="error">
+            {vehiclesError}
+        </HelperText>}     
+        {(washError != "" || vehiclesError!="") && <>
+            <Button theme={theme} style={{ marginBottom: 15, borderWidth: 1, borderColor: theme.colors.primary }} icon="plus" mode="outline" onPress={getWashesData}>
+                Tentar novamente
+            </Button>
+        </>}
         </SafeAreaView>
     )
 }

@@ -1,15 +1,13 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import FinantialManager from './tabs/FinantialManager';
-import { NavigationActions, CommonActions } from '@react-navigation/native';
 import { IconButton } from "react-native-paper"
-import FinantialWasher from './tabs/FinantialWasher';
-import Profile from './tabs/Profile';
 import Schedules from './tabs/Schedules';
-import Washers from './tabs/Washers';
+import Users from './tabs/Users';
 import { theme } from '../utils/theme';
 import { useSelector } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Address from './tabs/Address';
+import { CommonActions } from '@react-navigation/native';
 
 const Tab = createBottomTabNavigator();
 
@@ -18,6 +16,10 @@ const Dashboard = ({navigation}) => {
   const { user } = useSelector(state => state);
 
   const logout = () => {
+    const resetAction = CommonActions.reset({
+      index: 1,
+      routes: [{ name: "Login"}]
+    })
     AsyncStorage.clear()
     navigation.dispatch(resetAction)
   }
@@ -38,6 +40,10 @@ const Dashboard = ({navigation}) => {
               iconName = focused
                 ? 'map-marker'
                 : 'map-marker-outline'
+            } else if (route.name === 'Usuários') {
+              iconName = focused
+                ? 'account-group'
+                : 'account-group-outline'
             }
           // You can return any component that you like here!
           return <IconButton
@@ -56,8 +62,13 @@ const Dashboard = ({navigation}) => {
           <IconButton icon="logout" onPress={logout}/>
         ), }}
         name="Início" component={Schedules} />
-      {/*<Tab.Screen name="Lavadores" component={Washers} />*/}
-      {user.user.role == "MANAGER" && <Tab.Screen 
+      {user.user.role == "ADMIN" && <Tab.Screen 
+        options={{  tabBarLabel: 'Usuários',
+        headerRight: () => (
+          <IconButton icon="logout" onPress={logout}/>
+        ), }}
+        name="Usuários" component={Users} />}
+      {user.user.role == "ADMIN" && <Tab.Screen 
         options={{  tabBarLabel: 'Preços',
         headerRight: () => (
           <IconButton icon="logout" onPress={logout}/>

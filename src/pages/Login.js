@@ -14,8 +14,8 @@ import { passwordValidator } from "../utils/passwordValidator";
 import { theme } from "../utils/theme";
 import { useDispatch } from "react-redux";
 import { setUser } from "../redux/actions";
-import { auth, database } from "../config/firebaseconfig";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { login } from "../config/endpoints";
 
 const Login = ({ navigation }) => { 
     const dispatch = useDispatch()
@@ -48,41 +48,32 @@ const Login = ({ navigation }) => {
                 setLoading(false)
             }
         })
+    }, [])
 
-        const unsubscribe = auth.onAuthStateChanged(user => {
-            if(user) {
-                database.collection("users").doc(user.uid).onSnapshot((query) => {  
-                    const data = query.data()
+    const handleLogin = (data) => {
+        const _user = {
+            email: data.email,
+            login: data.login,
+            uid: data.id,
+            role: data.roles,
+            name: data.nome,
+            phone: data.phone,
+            token: data.token
+        }
 
-                    const _user = {
-                        email: data.email,
-                        uid: user.uid,
-                        role: data.role,
-                        name: data.name,
-                        phone: data.phone
-                    }
+        dispatch(
+            setUser(_user)
+        )
 
-                    dispatch(
-                        setUser(_user)
-                    )
-
-                    const resetAction = CommonActions.reset({
-                        index: 1,
-                        routes: [{ name: "Dashboard"}]
-                    })
-
-
-                    storeData(_user).then(() => {
-
-                        axios.defaults.headers.common = {'Authorization': `bearer ${token}`}
-                        navigation.dispatch(resetAction)
-                    })
-                })
-            }
+        const resetAction = CommonActions.reset({
+            index: 1,
+            routes: [{ name: "Dashboard"}]
         })
 
-        return unsubscribe
-    }, [])
+        storeData(_user).then(() => {
+            navigation.dispatch(resetAction)
+        })
+    }
 
     const _onLoginPressed = () => {
         setLoading(true)
@@ -98,16 +89,17 @@ const Login = ({ navigation }) => {
             return
         }
 
-        auth
-            .signInWithEmailAndPassword(email.value, password.value)
-            .then(userCredentials => {
-                const user = userCredentials.user
-            })
-            .catch(error => {
+        login(email.value, password.value).then((user) => {
+            setLoading(false)
+            if (user.data.message != undefined) {
                 setLoginError("Não foi possível realizar login com essas credenciais")
-                setLoading(false)
-            })
-    
+            } else {
+                handleLogin(user.data)
+            }
+        }).catch(() => {
+            setLoginError("Não foi possível realizar login com essas credenciais")
+            setLoading(false)
+        })
     }
 
     const storeData = async (value) => {
@@ -126,28 +118,7 @@ const Login = ({ navigation }) => {
           alert(JSON.stringify(e))
         }
     }
-
-    const handlePasswordReset = async () => {
-        setLoading(true)
-        setLoginError('')
-        const emailError = emailValidator(email.value)
-
-        if (emailError) {
-            setEmail({ ...email, error: emailError })
-            setLoading(false)
-            return
-        }
-      
-        await auth.sendPasswordResetEmail(email.value)
-            .then(() => {
-                setLoading(false)
-                setSuccessEmailReset("Sucesso! Cheque seu e-mail para criar nova senha")
-            }).catch(function (e) {
-                setLoading(false)
-                setLoginError("Opa! Erro ao enviar e-mail de recuperação")
-            })
-      }
-
+    
     return(
         <View style={styles.container}>
             <Title>Bem vindo ao Meu Lava Jato.</Title>
@@ -184,14 +155,6 @@ const Login = ({ navigation }) => {
             <HelperText type="error" visible={password.error != ''} style={styles.input}>
                 {password.error}
             </HelperText>
-
-            {!loading && <View style={styles.forgotPassword}>
-                <TouchableOpacity
-                onPress={handlePasswordReset}
-                >
-                <Text style={styles.label}>Esqueceu sua senha?</Text>
-                </TouchableOpacity>
-            </View>}
 
             {!loading && <Button theme={theme} mode="contained" onPress={_onLoginPressed}>
                 Login

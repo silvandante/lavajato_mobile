@@ -12,9 +12,10 @@ import { Title, TextInput, Button, HelperText, ActivityIndicator } from 'react-n
 import { emailValidator } from "../utils/emailValidator";
 import { passwordValidator } from "../utils/passwordValidator";
 import { theme } from "../utils/theme";
-import { auth, database } from "../config/firebaseconfig";
 import { setUser } from "../redux/actions";
 import { useDispatch } from "react-redux";
+import { login, register } from "../config/endpoints";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const Register = ({ navigation }) => {
 
@@ -89,42 +90,49 @@ const Register = ({ navigation }) => {
     }
 
     const handleSignUp = async () => {
-        auth
-            .createUserWithEmailAndPassword(email.value, password.value)
-            .then(userCredentials => {
-                try {
-                    const user = userCredentials.user
-                    database.collection('users').doc(user.uid).set({
-                        name: name.value,
-                        email: email.value,
-                        phone: phone.value,
-                        role: "CLIENT",
-                        uid: user.uid
-                    })
-
+        register(name.value, password.value, email.value, phone.value)
+        .then((user) => {
+            login(email.value, password.value).then((result) => {
+                if(result.data.message != undefined) {
+                    setRegisterError("Erro: "+result.message)
+                    setLoading(false)
+                } else {
                     const _user = {
-                        email: email.value,
-                        role: "CLIENT",
-                        uid: user.uid,
-                        name: name.value,
-                        phone: phone.value,
+                        email: result.data.email,
+                        login: result.data.login,
+                        uid: result.data.id,
+                        role: result.data.roles,
+                        name: result.data.nome,
+                        phone: result.data.phone,
+                        token: result.data.token
                     }
-
+        
                     dispatch(
                         setUser(_user)
                     )
-                    goToDashboard()
-                    setLoading(false)
-                } catch (error) {
-                    setRegisterError("Impossível armazenar esse usuário")
-                    setLoading(false)
+
+                    storeData(_user).then(() => {
+                        setLoading(false)
+                        goToDashboard()
+                    })
+
                 }
-            })
-            .catch(error => {
-                setRegisterError("Esse e-mail já está em uso")
+            }).catch((error) => {
+                setRegisterError("Erro: "+error.message)
                 setLoading(false)
             })
+            
+        })
+        .catch((error) => {
+            setRegisterError("Erro: "+error.message)
+            setLoading(false)
+        })
     }
+
+    const storeData = async (value) => {
+        await AsyncStorage.setItem('meulavajato@user', JSON.stringify(value))
+    }
+
 
     return(
         <View style={styles.container}>

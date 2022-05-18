@@ -9,7 +9,7 @@ import { FlatList } from "react-native-gesture-handler"
 import { ActivityIndicator, Button } from "react-native-paper"
 import { useSelector } from "react-redux"
 import ScheduleItem from "../../components/ScheduleItem"
-import { database } from "../../config/firebaseconfig"
+import { getOrder, getOrders } from "../../config/endpoints"
 import { theme } from "../../utils/theme"
 
 const Schedules = ({navigation}) => {
@@ -17,35 +17,47 @@ const Schedules = ({navigation}) => {
     const { user } = useSelector(state => state)
     const [data, setData] = useState([])
     const [loading, setLoading] = useState(false)
+    const [dataError, setDataError] = useState("")
 
     useEffect(() => {
+        const _unsubscribe = navigation.addListener('focus', () => {
+            getOrdersData()
+        });
+
+        return _unsubscribe
+    }, [])
+
+    const getOrdersData = () => {
+        setDataError("")
         setLoading(true)
         switch(user.user.role) {
-            case "MANAGER":
-                database.collection("orders").orderBy("createdAt", "asc").onSnapshot((query) => {
-                    const list = []
-                    query.forEach((doc) => {
-                        list.push({...doc.data(), id: doc.id})
-                    })
-                    setData(list.reverse())
+            case "ADMIN":
+                getOrders("ADMIN", user.user.token).then((result) => {
+                    if(result.data.message != undefined) {
+                        setDataError(error.message)
+                        setLoading(false)
+                    } else {
+                        const list = result.data
+                        setData(list.reverse())
+                        setLoading(false)
+                    }
+                }).catch((error) => {
+                    setDataError(error.message)
                     setLoading(false)
                 })
                 break
             case "CLIENT":
-                database.collection("orders").where("uidClient", "==", user.user.uid).onSnapshot((query) => {
-                    const list = []
-                    query.forEach((doc) => {
-                        list.push({...doc.data(), id: doc.id})
-                    })
-                    const array = list.sort(function(a, b) {
-                        var c = new Date(a.createdAt);
-                        var d = new Date(b.createdAt);
-                        return d-c;
-                    })
-
-                    setData(
-                        array
-                    )
+                getOrders("CLIENT", user.user.token).then((result) => {
+                    if(result.data.message != undefined) {
+                        setDataError(error.message)
+                        setLoading(false)
+                    } else {
+                        const list = result.data
+                        setData(list.reverse())
+                        setLoading(false)
+                    }
+                }).catch((error) => {
+                    setDataError(error.message)
                     setLoading(false)
                 })
                 break
@@ -54,7 +66,7 @@ const Schedules = ({navigation}) => {
                 setLoading(false)
                 break
         }
-    }, [])
+    }
 
     return(
         <SafeAreaView style={{padding: 15, flex: 1}}>
@@ -68,6 +80,12 @@ const Schedules = ({navigation}) => {
                 keyExtractor={item => item.id}
             />}
             {loading && <ActivityIndicator size={"large"} color={theme.colors.primary}/>}
+            {!loading && dataError!="" && <>
+                    <Button theme={theme} style={{ marginBottom: 15, borderWidth: 1, borderColor: theme.colors.primary }} icon="plus" mode="outline" onPress={getOrdersData}>
+                        Tentar novamente
+                    </Button>
+                    <Text>{dataError}</Text>
+                </>}
         </SafeAreaView>
     )
 }

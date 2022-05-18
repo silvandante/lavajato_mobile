@@ -2,10 +2,6 @@ import React, { useState } from "react"
 
 import SegmentedControl from '@react-native-segmented-control/segmented-control';
 
-import { Title, TextInput, Button, HelperText } from 'react-native-paper';
-
-import { theme } from "../../utils/theme";
-
 import {
     StyleSheet,
     View,
